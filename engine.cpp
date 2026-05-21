@@ -3,17 +3,40 @@
 #include <thread>
 #include <chrono>
 #include <algorithm>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <iomanip>
 
 GameEngine::GameEngine(): GameEngine(DEFAULT_WIDTH, DEFAULT_HEIGHT, true) {}
 GameEngine::GameEngine(bool generateBoard): GameEngine(DEFAULT_WIDTH, DEFAULT_HEIGHT, generateBoard) {}
-GameEngine::GameEngine(int w, int h, bool generateBoard): width(w), height(h), tick(0) {
+GameEngine::GameEngine(int w, int h, bool generateBoard): width(w), height(h), tick(0), isFullScreen(false), headerLines(0) {
     board.assign(width * height, false);
 
     if (generateBoard) { randomStart(); }
 }
 
 
-// void GameEngine::fullscreen() { }
+void GameEngine::fullscreen() { 
+    #ifdef _WIN32
+        std::cout << "Not supported currently!\n"
+    #elif __linux__
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+
+        int rows = w.ws_row;
+        int cols = w.ws_col;
+
+        headerLines = 2;        // tick count and live cell count , cursor at botom 
+        board.assign((rows - headerLines) * cols, false);
+        width = cols;
+        height = rows - headerLines;
+        isFullScreen = true;
+
+    #else
+        std::cout << "Not supported currently!\n"
+    #endif 
+}
 
 void GameEngine::setTickRateMS(long ms) { tickRateMS = ms; }
 
@@ -34,28 +57,41 @@ void GameEngine::set(int x, int y, bool state) {
 
 
 void GameEngine::display() {
+    if (isFullScreen) {
+        std::cout << " tick=" << std::setfill(' ') << std::left << std::setw(8) << tick
+                << " | tickrate (ms) = "   << std::left << std::setw(6) << tickRateMS
+                << " | live cell count = " << std::left << std::setw(8) << liveCellCount 
+                << "\n";
+    }
+   
     for (int y = 0; y<height; y++) {
         for (int x =0; x < width; x++ ) {
             std::cout << ( get(x, y) ? ALIVE_CHAR : DEAD_CHAR );
         }
 
-        if (y == 0) { std::cout << "  tick=" << tick; }
-        if (y == 1) { std::cout << "  live cell count=" << liveCellCount; }
+        if (!isFullScreen && y == 0) { std::cout << "  tick=" << tick; }
+        if (!isFullScreen && y == 1) { std::cout << "  live cell count=" << liveCellCount; }
         std::cout << "\n";
     }
 }
 
 void GameEngine::clearScreen() {
-    for (int x = 0; x<width; x++)  { std::cout << "\033[1D"; }
-    for (int y = 0; y<height; y++) { std::cout << "\033[1A"; }
-    std::cout << std::flush;
-
+    int lines = height + headerLines;
+    std::cout << "\033[" << lines << "A" << std::flush; 
 }
 
 int GameEngine::neighbourCount(int x, int y) {
-    return  get(x-1, y-1) + get(x, y-1) + get(x+1, y-1) +
-            get(x-1, y) + /* skip */       get(x+1, y) +
-            get(x-1, y+1) + get(x, y+1) + get(x+1, y+1);
+    int count = 0;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) continue;
+            int newX = x + dx;
+            int newY = y + dy;
+            if (newX < 0 || newX >= width || newY < 0 || newY >= height) continue;
+            count += get(newX, newY);
+        }
+    }
+    return count;
 }
 
 void GameEngine::step() {
