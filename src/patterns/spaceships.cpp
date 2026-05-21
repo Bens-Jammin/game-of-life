@@ -11,3 +11,4 @@ void spaceship_glider(GameEngine &board, int x, int y) {
     board.set(x+1, y+1, true);
     board.set(x+2, y+1, true);
 }
+

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <iomanip>
+#include <tuple>
 
 GameEngine::GameEngine(): GameEngine(DEFAULT_WIDTH, DEFAULT_HEIGHT, true) {}
 GameEngine::GameEngine(bool generateBoard): GameEngine(DEFAULT_WIDTH, DEFAULT_HEIGHT, generateBoard) {}
@@ -50,17 +51,25 @@ void GameEngine::randomStart() {
 }
 
 bool GameEngine::get(int x, int y)           { return board[y * width + x]; }
+
 void GameEngine::set(int x, int y, bool state) { 
+    if (x < 0 || x >= width || y < 0 || y >= height) {
+        std::cout << "ERROR! accessing out of bounds! tried to access (" << x << "," << y << ") with range (width=[0," << width << "], height=[0," << height << "]).\n";
+        return;
+    }
     bool current = get(x,y);
     if (current != state) { board[y * width + x] = state; }
+}
+void GameEngine::setMany(std::vector<std::tuple<int, int, bool>> points) {
+    for ( auto& [x, y, state] : points ) set(x, y, state);
 }
 
 
 void GameEngine::display() {
     if (isFullScreen) {
-        std::cout << " tick=" << std::setfill(' ') << std::left << std::setw(8) << tick
+        std::cout << " generation = " << std::setfill(' ') << std::left << std::setw(8) << tick
                 << " | tickrate (ms) = "   << std::left << std::setw(6) << tickRateMS
-                << " | live cell count = " << std::left << std::setw(8) << liveCellCount 
+                << " | population = " << std::left << std::setw(8) << liveCellCount 
                 << "\n";
     }
    
@@ -69,8 +78,10 @@ void GameEngine::display() {
             std::cout << ( get(x, y) ? ALIVE_CHAR : DEAD_CHAR );
         }
 
-        if (!isFullScreen && y == 0) { std::cout << "  tick=" << tick; }
-        if (!isFullScreen && y == 1) { std::cout << "  live cell count=" << liveCellCount; }
+        if (!isFullScreen && y == 0) { std::cout << "     generation=" << tick; }
+        if (!isFullScreen && y == 1) { std::cout << "     population=" << liveCellCount; }
+        if (!isFullScreen && y == 2) { std::cout << "  tickrate (ms)=" << tickRateMS; }
+        
         std::cout << "\n";
     }
 }
